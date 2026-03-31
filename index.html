@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Game Porter — palmtree.technology</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  body {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    background: #020617;
+    background-image:
+      linear-gradient(rgba(56,189,248,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(56,189,248,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    color: #f8fafc;
+    cursor: none;
+    min-height: 100vh;
+  }
+
+  .code-font { font-family: 'JetBrains Mono', monospace; }
+
+  .glass-card {
+    background: rgba(15,23,42,0.8);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(56,189,248,0.1);
+    transition: all 0.4s cubic-bezier(0.4,0,0.2,1);
+    box-shadow: 0 4px 30px rgba(0,0,0,0.5);
+    position: relative; z-index: 10;
+  }
+  .glass-card:hover {
+    border-color: rgba(56,189,248,0.4);
+    transform: translateY(-4px);
+    box-shadow: 0 10px 40px rgba(56,189,248,0.1);
+  }
+  .glass-card-static {
+    background: rgba(15,23,42,0.8);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(56,189,248,0.1);
+    box-shadow: 0 4px 30px rgba(0,0,0,0.5);
+    position: relative; z-index: 10;
+  }
+
+  a, button, .interactable, select { cursor: none; }
+
+  #cursor-dot {
+    width: 4px; height: 4px; background-color: #38bdf8;
+    position: fixed; border-radius: 50%; z-index: 1000; pointer-events: none;
+    transition: transform 0.05s linear;
+  }
+  #cursor-shape {
+    width: 24px; height: 24px; position: fixed; z-index: 999; pointer-events: none;
+    transition: transform 0.15s ease-out;
+    display: flex; align-items: center; justify-content: center;
+    filter: drop-shadow(0 0 5px rgba(56,189,248,0.5));
+  }
+  #cursor-glow {
+    position: fixed; top: 0; left: 0; width: 400px; height: 400px;
+    background: radial-gradient(circle, rgba(56,189,248,0.08) 0%, transparent 70%);
+    border-radius: 50%; pointer-events: none; transform: translate(-50%,-50%); z-index: 0;
+  }
+  .cursor-active #cursor-shape {
+    transform: translate(-50%,-50%) scale(1.3);
+    filter: drop-shadow(0 0 10px rgba(56,189,248,0.8));
+  }
+
+  input, textarea, select {
+    background: rgba(2,6,23,0.5) !important;
+    border: 1px solid rgba(56,189,248,0.1) !important;
+    color: white !important; outline: none !important; transition: border-color 0.2s;
+  }
+  input:focus, textarea:focus, select:focus { border-color: rgba(56,189,248,0.5) !important; }
+  input::placeholder, textarea::placeholder { color: #64748b !important; }
+  select option { background: #0f172a; color: #f8fafc; }
+
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 10px; }
+
+  .fade-in { animation: fadeIn 0.8s ease-out forwards; }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(15px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .toast {
+    position: fixed; bottom: 2rem; left: 50%;
+    transform: translateX(-50%) translateY(4rem);
+    background: rgba(15,23,42,0.95); border: 1px solid rgba(56,189,248,0.3);
+    color: #38bdf8; padding: 0.6rem 1.4rem; border-radius: 999px;
+    font-size: 0.75rem; font-weight: 600; letter-spacing: 0.05em;
+    z-index: 9999; transition: transform 0.3s ease, opacity 0.3s ease;
+    opacity: 0; pointer-events: none;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+
+  .drop-zone {
+    border: 2px dashed rgba(56,189,248,0.15); border-radius: 1.5rem;
+    transition: border-color 0.2s, background 0.2s;
+  }
+  .drop-zone:hover, .drop-zone.drag-over {
+    border-color: rgba(56,189,248,0.4); background: rgba(56,189,248,0.03);
+  }
+
+  .progress-track { height: 2px; background: rgba(255,255,255,0.05); border-radius: 2px; overflow: hidden; }
+  .progress-fill {
+    height: 100%; background: linear-gradient(90deg, #38bdf8, #818cf8);
+    border-radius: 2px; transition: width 0.4s ease; width: 0%;
+  }
+
+  .log-line { animation: slideIn 0.2s ease; }
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateX(-6px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+
+  .provider-option { transition: all 0.25s ease; }
+  .provider-option:hover { transform: translateY(-2px); }
+
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.2} }
+  .pulse-dot { animation: pulse 1.2s infinite; }
+
+  .tab-btn { transition: all 0.15s; border-bottom: 2px solid transparent; }
+  .tab-btn.active { color: #38bdf8; border-bottom-color: #38bdf8; }
+</style>
+</head>
+<body>
+
+<div id="cursor-dot"></div>
+<div id="cursor-shape">
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+    <path d="M3 3L10 21L13 13L21 10L3 3Z" stroke="rgba(56,189,248,0.8)" stroke-width="1.5" stroke-linejoin="round"/>
+  </svg>
+</div>
+<div id="cursor-glow"></div>
+<div class="toast" id="toast"></div>
+
+<div class="max-w-4xl mx-auto py-12 px-6 fade-in">
+
+  <!-- Header -->
+  <div class="flex items-center gap-4 mb-10">
+    <a href="index.html" class="p-3 bg-white/5 border border-white/10 rounded-2xl hover:bg-sky-500/10 hover:border-sky-500/30 transition-all interactable">
+      <i data-lucide="arrow-left" class="w-5 h-5 text-sky-400"></i>
+    </a>
+    <div>
+      <h1 class="text-3xl md:text-4xl font-bold tracking-tight text-white">Game Porter</h1>
+      <p class="text-slate-500 text-sm code-font">palmtree_technology/game_porter</p>
+    </div>
+    <div class="ml-auto">
+      <span class="text-[10px] uppercase tracking-widest text-slate-500 font-bold bg-white/5 px-3 py-1 rounded-full border border-white/10">AI Powered</span>
+    </div>
+  </div>
+
+  <p class="text-slate-400 text-sm leading-relaxed mb-8 max-w-2xl">
+    Upload Python scripts, describe an EXE, or paste source code —
+    <span class="text-white font-semibold">AI re-implements it as a fully playable browser game</span>
+    in pure HTML, CSS and JavaScript.
+  </p>
+
+  <!-- Warning -->
+  <div class="glass-card-static rounded-[1.5rem] p-5 mb-6" style="border-color:rgba(245,158,11,0.2);background:rgba(245,158,11,0.04)">
+    <div class="flex gap-3 items-start">
+      <div class="bg-amber-500/10 p-2.5 rounded-xl border border-amber-500/20 flex-shrink-0">
+        <i data-lucide="triangle-alert" class="w-5 h-5 text-amber-400"></i>
+      </div>
+      <div>
+        <p class="text-xs font-bold text-amber-400 uppercase tracking-widest mb-1">Limitations</p>
+        <p class="text-slate-400 text-sm leading-relaxed">EXE and binary files cannot be decompiled — describe the game or paste source code instead.
+          <span class="text-white font-semibold">.py, .js, .lua</span> and other text-based source files work best.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+    <!-- LEFT -->
+    <div class="space-y-5">
+
+      <!-- AI Provider -->
+      <div class="glass-card-static rounded-[2rem] p-6">
+        <div class="flex items-center gap-3 mb-5">
+          <div class="bg-sky-500/10 p-3 rounded-xl border border-sky-500/20">
+            <i data-lucide="cpu" class="w-6 h-6 text-sky-400"></i>
+          </div>
+          <div>
+            <p class="font-bold text-white text-lg">AI Provider</p>
+            <p class="text-[10px] uppercase tracking-widest text-slate-500 code-font">select_model</p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3 mb-5">
+          <!-- Claude -->
+          <div class="provider-option glass-card rounded-[1.5rem] p-4 interactable" id="card-claude" onclick="selectProvider('claude')"
+               style="border-color:rgba(56,189,248,0.4);background:rgba(56,189,248,0.04)">
+            <div class="flex items-center justify-between mb-3">
+              <div class="bg-sky-500/10 p-2 rounded-xl border border-sky-500/20">
+                <i data-lucide="bot" class="w-4 h-4 text-sky-400"></i>
+              </div>
+              <div id="check-claude" class="w-4 h-4 rounded-full bg-sky-400 flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="#0f172a" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+              </div>
+            </div>
+            <p class="font-bold text-white text-sm">Claude</p>
+            <p class="text-[10px] code-font text-slate-500 mt-0.5">sonnet-4</p>
+          </div>
+          <!-- Gemini -->
+          <div class="provider-option glass-card rounded-[1.5rem] p-4 interactable" id="card-gemini" onclick="selectProvider('gemini')">
+            <div class="flex items-center justify-between mb-3">
+              <div class="bg-purple-500/10 p-2 rounded-xl border border-purple-500/20">
+                <i data-lucide="sparkles" class="w-4 h-4 text-purple-400"></i>
+              </div>
+              <div id="check-gemini" class="w-4 h-4 rounded-full border border-white/10"></div>
+            </div>
+            <p class="font-bold text-white text-sm">Gemini</p>
+            <p class="text-[10px] code-font text-slate-500 mt-0.5">2.0-flash</p>
+          </div>
+        </div>
+
+        <!-- Claude key -->
+        <div id="key-claude">
+          <p class="text-[10px] uppercase tracking-widest text-slate-500 code-font mb-2">
+            Anthropic API Key
+            <span class="text-slate-600 normal-case tracking-normal not-code"> — auto-injected on claude.ai</span>
+          </p>
+          <div class="flex gap-2">
+            <input id="claudeKey" type="password" placeholder="sk-ant-... (leave blank on claude.ai)"
+              class="w-full p-3 rounded-xl text-sm code-font interactable">
+            <button onclick="toggleKey('claudeKey')" class="p-3 bg-white/5 border border-white/10 rounded-xl hover:bg-sky-500/10 hover:border-sky-500/30 transition-all interactable flex-shrink-0">
+              <i data-lucide="eye" class="w-4 h-4 text-slate-400"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Gemini key -->
+        <div id="key-gemini" style="display:none">
+          <div class="flex items-center justify-between mb-2">
+            <p class="text-[10px] uppercase tracking-widest text-slate-500 code-font">Google API Key</p>
+            <a href="https://aistudio.google.com/apikey" target="_blank"
+               class="text-[10px] text-sky-400 code-font hover:text-sky-300 transition-colors interactable">get one ↗</a>
+          </div>
+          <div class="flex gap-2">
+            <input id="geminiKey" type="password" placeholder="AIza..."
+              class="w-full p-3 rounded-xl text-sm code-font interactable">
+            <button onclick="toggleKey('geminiKey')" class="p-3 bg-white/5 border border-white/10 rounded-xl hover:bg-sky-500/10 hover:border-sky-500/30 transition-all interactable flex-shrink-0">
+              <i data-lucide="eye" class="w-4 h-4 text-slate-400"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- File Upload -->
+      <div class="glass-card-static rounded-[2rem] p-6">
+        <div class="flex items-center gap-3 mb-4">
+          <div class="bg-emerald-500/10 p-3 rounded-xl border border-emerald-500/20">
+            <i data-lucide="folder-open" class="w-6 h-6 text-emerald-400"></i>
+          </div>
+          <div>
+            <p class="font-bold text-white text-lg">Source Files</p>
+            <p class="text-[10px] uppercase tracking-widest text-slate-500 code-font">upload_source</p>
+          </div>
+        </div>
+        <div class="drop-zone p-6 text-center interactable" id="dropZone"
+             onclick="document.getElementById('fileInput').click()">
+          <i data-lucide="upload-cloud" class="w-8 h-8 text-slate-500 mx-auto mb-3"></i>
+          <p class="text-sm font-semibold text-slate-300 mb-1">Drop files or click to browse</p>
+          <p class="text-[10px] code-font text-slate-600">.py · .js · .lua · .cpp · .cs · .rb · .txt · .exe</p>
+          <div id="fileChips" class="flex flex-wrap gap-2 justify-center mt-3"></div>
+        </div>
+        <input type="file" id="fileInput" multiple accept=".py,.js,.txt,.lua,.rb,.cpp,.cs,.exe,.java,.ts,.html" style="display:none">
+      </div>
+
+      <!-- Description -->
+      <div class="glass-card-static rounded-[2rem] p-6">
+        <div class="flex items-center gap-3 mb-4">
+          <div class="bg-amber-500/10 p-3 rounded-xl border border-amber-500/20">
+            <i data-lucide="file-text" class="w-6 h-6 text-amber-400"></i>
+          </div>
+          <div>
+            <p class="font-bold text-white text-lg">Description</p>
+            <p class="text-[10px] uppercase tracking-widest text-slate-500 code-font">game_context</p>
+          </div>
+        </div>
+        <textarea id="descInput" rows="4"
+          placeholder="Describe the game: genre, mechanics, controls, win condition..."
+          class="w-full p-3 rounded-xl text-sm leading-relaxed interactable resize-none"></textarea>
+      </div>
+
+    </div>
+
+    <!-- RIGHT -->
+    <div class="space-y-5">
+
+      <!-- Config -->
+      <div class="glass-card-static rounded-[2rem] p-6">
+        <div class="flex items-center gap-3 mb-5">
+          <div class="bg-indigo-500/10 p-3 rounded-xl border border-indigo-500/20">
+            <i data-lucide="settings-2" class="w-6 h-6 text-indigo-400"></i>
+          </div>
+          <div>
+            <p class="font-bold text-white text-lg">Port Settings</p>
+            <p class="text-[10px] uppercase tracking-widest text-slate-500 code-font">config</p>
+          </div>
+        </div>
+
+        <div class="space-y-4">
+          <div>
+            <p class="text-[10px] uppercase tracking-widest text-slate-500 code-font mb-2">Game Name</p>
+            <input id="nameInput" type="text" placeholder="My Awesome Game"
+              class="w-full p-3 rounded-xl text-sm interactable">
+          </div>
+          <div>
+            <p class="text-[10px] uppercase tracking-widest text-slate-500 code-font mb-2">Output Style</p>
+            <select id="styleSelect" class="w-full p-3 rounded-xl text-sm interactable">
+              <option value="faithful">Faithful port (stay close to original)</option>
+              <option value="enhanced">Enhanced (improve visuals &amp; UX)</option>
+              <option value="retro">Retro pixel aesthetic</option>
+              <option value="minimal">Minimal / clean</option>
+            </select>
+          </div>
+          <div>
+            <p class="text-[10px] uppercase tracking-widest text-slate-500 code-font mb-2">Target Platform</p>
+            <select id="platformSelect" class="w-full p-3 rounded-xl text-sm interactable">
+              <option value="desktop">Desktop browser</option>
+              <option value="mobile">Mobile-friendly</option>
+              <option value="both">Both (responsive)</option>
+            </select>
+          </div>
+          <div>
+            <p class="text-[10px] uppercase tracking-widest text-slate-500 code-font mb-2">Canvas Size</p>
+            <input id="sizeInput" type="text" value="800x600"
+              class="w-full p-3 rounded-xl text-sm code-font interactable">
+          </div>
+          <div>
+            <p class="text-[10px] uppercase tracking-widest text-slate-500 code-font mb-2">Extra Instructions</p>
+            <textarea id="extraInput" rows="3"
+              placeholder="e.g. add high score, dark theme, touch controls..."
+              class="w-full p-3 rounded-xl text-sm resize-none interactable"></textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- Convert -->
+      <button id="convertBtn" onclick="runConversion()" disabled
+        class="w-full py-4 bg-sky-500 hover:bg-sky-400 disabled:opacity-30 disabled:pointer-events-none text-slate-900 font-bold rounded-[1.5rem] transition-all text-sm tracking-wide interactable flex items-center justify-center gap-2">
+        <i data-lucide="zap" class="w-4 h-4"></i>
+        Convert to HTML Game
+      </button>
+
+    </div>
+  </div>
+
+  <!-- Log -->
+  <div id="logPanel" class="glass-card-static rounded-[2rem] mt-6 overflow-hidden" style="display:none">
+    <div class="flex items-center gap-3 px-6 py-4 border-b border-white/5">
+      <div class="w-2 h-2 rounded-full bg-emerald-400 pulse-dot" id="pulseDot"></div>
+      <p class="text-xs code-font text-slate-400" id="logStatus">Processing...</p>
+      <div class="ml-auto progress-track w-32">
+        <div class="progress-fill" id="progressBar"></div>
+      </div>
+    </div>
+    <div class="px-6 py-4 space-y-1 max-h-44 overflow-y-auto" id="logBody"></div>
+  </div>
+
+  <!-- Output -->
+  <div id="outputSection" class="mt-6" style="display:none">
+    <div class="glass-card-static rounded-[2rem] overflow-hidden">
+      <div class="flex border-b border-white/5">
+        <button class="tab-btn active px-6 py-4 text-xs code-font text-slate-400 interactable" onclick="switchTab('html')">index.html</button>
+        <button class="tab-btn px-6 py-4 text-xs code-font text-slate-400 interactable flex items-center gap-1.5" onclick="switchTab('preview')">
+          <i data-lucide="monitor" class="w-3 h-3"></i> Preview
+        </button>
+      </div>
+
+      <div id="tab-html" class="p-6 relative">
+        <button onclick="copyOutput()"
+          class="absolute top-4 right-4 p-2 bg-white/5 border border-white/10 rounded-xl hover:bg-sky-500/10 hover:border-sky-500/30 transition-all interactable">
+          <i data-lucide="copy" class="w-4 h-4 text-slate-400"></i>
+        </button>
+        <pre class="text-xs code-font text-slate-300 leading-relaxed max-h-96 overflow-y-auto whitespace-pre-wrap break-all" id="outputCode"></pre>
+      </div>
+
+      <div id="tab-preview" class="p-6" style="display:none">
+        <iframe id="previewFrame" style="width:100%;height:480px;border:none;border-radius:1rem;background:#000"></iframe>
+      </div>
+
+      <div class="px-6 pb-6 flex gap-3">
+        <button onclick="downloadHTML()"
+          class="flex-1 py-3 bg-sky-500 hover:bg-sky-400 text-slate-900 font-bold rounded-xl transition-all text-sm interactable flex items-center justify-center gap-2">
+          <i data-lucide="download" class="w-4 h-4"></i> Download index.html
+        </button>
+        <button onclick="copyOutput()"
+          class="py-3 px-5 bg-white/5 border border-white/10 rounded-xl text-xs font-bold hover:bg-sky-500/10 transition-all interactable flex items-center gap-2">
+          <i data-lucide="clipboard" class="w-4 h-4 text-slate-400"></i>
+          <span class="text-slate-300">Copy</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const state = { files: [], output: '', provider: 'claude' };
+
+// ── Cursor ────────────────────────────────────────────────────────────────────
+const dot = document.getElementById('cursor-dot');
+const shape = document.getElementById('cursor-shape');
+const glow = document.getElementById('cursor-glow');
+window.addEventListener('mousemove', e => {
+  dot.style.left = shape.style.left = `${e.clientX}px`;
+  dot.style.top  = shape.style.top  = `${e.clientY}px`;
+  dot.style.transform = shape.style.transform = 'translate(-50%,-50%)';
+  glow.style.left = `${e.clientX}px`;
+  glow.style.top  = `${e.clientY}px`;
+});
+
+window.addEventListener('load', () => {
+  lucide.createIcons();
+  document.querySelectorAll('.interactable, a, button, input, textarea, select').forEach(el => {
+    el.addEventListener('mouseenter', () => document.body.classList.add('cursor-active'));
+    el.addEventListener('mouseleave', () => document.body.classList.remove('cursor-active'));
+  });
+});
+
+// ── Toast ─────────────────────────────────────────────────────────────────────
+function showToast(msg, color = '#38bdf8') {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.style.color = color; t.style.borderColor = color + '55';
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ── Provider ──────────────────────────────────────────────────────────────────
+function selectProvider(p) {
+  state.provider = p;
+
+  const cc = document.getElementById('card-claude');
+  cc.style.borderColor = p==='claude' ? 'rgba(56,189,248,0.4)' : 'rgba(56,189,248,0.1)';
+  cc.style.background  = p==='claude' ? 'rgba(56,189,248,0.04)' : '';
+
+  const chkC = document.getElementById('check-claude');
+  chkC.style.display = p==='claude' ? 'flex' : 'none';
+
+  const gc = document.getElementById('card-gemini');
+  gc.style.borderColor = p==='gemini' ? 'rgba(168,85,247,0.4)' : 'rgba(56,189,248,0.1)';
+  gc.style.background  = p==='gemini' ? 'rgba(168,85,247,0.04)' : '';
+
+  const chkG = document.getElementById('check-gemini');
+  if (p==='gemini') {
+    chkG.className = 'w-4 h-4 rounded-full bg-purple-400 flex items-center justify-center';
+    chkG.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="#0f172a" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>';
+  } else {
+    chkG.className = 'w-4 h-4 rounded-full border border-white/10';
+    chkG.innerHTML = '';
+  }
+
+  document.getElementById('key-claude').style.display = p==='claude' ? 'block' : 'none';
+  document.getElementById('key-gemini').style.display = p==='gemini' ? 'block' : 'none';
+}
+
+function toggleKey(id) {
+  const inp = document.getElementById(id);
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+}
+
+// ── Files ─────────────────────────────────────────────────────────────────────
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('drag-over'); addFiles([...e.dataTransfer.files]); });
+fileInput.addEventListener('change', () => addFiles([...fileInput.files]));
+
+function addFiles(newFiles) {
+  newFiles.forEach(f => { if (!state.files.find(x => x.name === f.name)) state.files.push(f); });
+  renderChips(); updateBtn();
+}
+function removeFile(name) { state.files = state.files.filter(f => f.name !== name); renderChips(); updateBtn(); }
+function renderChips() {
+  const c = document.getElementById('fileChips');
+  c.innerHTML = '';
+  state.files.forEach(f => {
+    const chip = document.createElement('span');
+    chip.className = 'px-2 py-1 bg-white/5 border border-white/10 rounded text-[10px] text-slate-300 code-font flex items-center gap-1.5';
+    chip.innerHTML = `${fileIcon(f.name)} ${f.name} <span onclick="removeFile('${f.name}')" style="cursor:none;color:#64748b;font-size:1rem;line-height:1" class="hover:text-red-400 transition-colors interactable">×</span>`;
+    c.appendChild(chip);
+  });
+}
+function fileIcon(n) {
+  const ext = n.split('.').pop().toLowerCase();
+  return {py:'🐍',js:'🟨',exe:'⚙️',lua:'🌙',cpp:'🔵',cs:'🟣',rb:'💎',java:'☕',ts:'🔷',html:'🌐',txt:'📄'}[ext]||'📎';
+}
+function updateBtn() {
+  const desc = document.getElementById('descInput').value.trim();
+  document.getElementById('convertBtn').disabled = !(state.files.length || desc);
+}
+document.getElementById('descInput').addEventListener('input', updateBtn);
+
+// ── Conversion ────────────────────────────────────────────────────────────────
+async function runConversion() {
+  const desc     = document.getElementById('descInput').value.trim();
+  const style    = document.getElementById('styleSelect').value;
+  const platform = document.getElementById('platformSelect').value;
+  const extra    = document.getElementById('extraInput').value.trim();
+  const name     = document.getElementById('nameInput').value.trim() || 'My Game';
+  const size     = document.getElementById('sizeInput').value.trim() || '800x600';
+
+  showLog(); setProgress(5);
+  addLog('info', `Reading ${state.files.length} file(s)...`);
+  const fileContents = await Promise.all(state.files.map(readFile));
+  setProgress(20);
+
+  const prompt = buildPrompt({ desc, style, platform, extra, name, size, fileContents });
+  addLog('info', `Sending to ${state.provider === 'claude' ? 'Claude Sonnet 4' : 'Gemini 2.0 Flash'}...`);
+  setProgress(35);
+
+  try {
+    const html = state.provider === 'gemini' ? await callGemini(prompt) : await callClaude(prompt);
+    if (!html) throw new Error('No HTML found. Try adding more description.');
+    state.output = html;
+    setProgress(100);
+    addLog('ok', 'Conversion complete!');
+    showOutput(html);
+    stopPulse('Complete', false);
+    showToast('✓ Game ported successfully');
+  } catch (err) {
+    setProgress(100);
+    addLog('err', err.message);
+    stopPulse('Failed', true);
+    showToast('✗ ' + err.message, '#f87171');
+  }
+}
+
+async function callClaude(prompt) {
+  const key = document.getElementById('claudeKey').value.trim();
+  const headers = { 'Content-Type': 'application/json' };
+  if (key) headers['x-api-key'] = key;
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method:'POST', headers,
+    body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:1000, messages:[{role:'user',content:prompt}] })
+  });
+  setProgress(70); addLog('info', 'Receiving Claude response...');
+  if (!res.ok) { const e = await res.json().catch(()=>{}); throw new Error(e?.error?.message || `HTTP ${res.status}`); }
+  const data = await res.json(); setProgress(90);
+  return extractHTML(data.content?.map(b=>b.text||'').join('')||'');
+}
+
+async function callGemini(prompt) {
+  const key = document.getElementById('geminiKey').value.trim();
+  if (!key) throw new Error('Gemini API key required. Get one at aistudio.google.com/apikey');
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ contents:[{parts:[{text:prompt}]}], generationConfig:{maxOutputTokens:8192,temperature:0.7} })
+  });
+  setProgress(70); addLog('info', 'Receiving Gemini response...');
+  if (!res.ok) { const e = await res.json().catch(()=>{}); throw new Error(e?.error?.message || `Gemini HTTP ${res.status}`); }
+  const data = await res.json(); setProgress(90);
+  return extractHTML(data.candidates?.[0]?.content?.parts?.map(p=>p.text||'').join('')||'');
+}
+
+function buildPrompt({desc,style,platform,extra,name,size,fileContents}) {
+  const [w,h] = size.toLowerCase().replace('x','×').split(/[x×,]/);
+  const fileSection = fileContents.length ? fileContents.map(f=>`\n--- FILE: ${f.name} ---\n${f.content}`).join('\n') : '';
+  const platformNote = {desktop:'target desktop browsers, use keyboard controls',mobile:'target mobile, use touch controls',both:'responsive, support keyboard and touch'}[platform];
+  const styleNote = {faithful:'Stay faithful to the original',enhanced:'Enhance visuals with animations and modern UI',retro:'Retro pixel-art aesthetic with pixel font',minimal:'Clean minimal design limited color palette'}[style];
+  return `You are a game porting expert. Convert the following into a COMPLETE self-contained single-file HTML game.
+
+GAME NAME: ${name}
+CANVAS SIZE: ${w||800} × ${h||600}
+DESCRIPTION: ${desc||'(see source files)'}
+STYLE: ${styleNote}
+PLATFORM: ${platformNote}
+EXTRA: ${extra||'none'}
+${fileSection}
+
+REQUIREMENTS:
+1. Output ONLY the complete HTML — no explanation, no markdown fences, no preamble.
+2. Start with <!DOCTYPE html> end with </html>.
+3. All CSS in <style>. All JS in <script>. No external deps except Google Fonts.
+4. Fully playable: start screen, game loop, score, game-over screen.
+5. Use <canvas> for rendering whenever appropriate.
+6. Include in-game instructions.
+7. If binary/EXE, re-implement from scratch using description.
+8. Make it genuinely fun and polished.
+
+Output the complete HTML file now:`;
+}
+
+function extractHTML(raw) {
+  const m = raw.match(/<!DOCTYPE html[\s\S]*<\/html>/i);
+  if (m) return m[0];
+  if (/^\s*<!DOCTYPE/i.test(raw)||/^\s*<html/i.test(raw)) return raw.trim();
+  return null;
+}
+
+function readFile(file) {
+  return new Promise(resolve => {
+    if (['exe','dll','bin','dat'].includes(file.name.split('.').pop().toLowerCase())) {
+      resolve({name:file.name,content:'[Binary — cannot decompile. Use description field.]'}); return;
+    }
+    const r = new FileReader();
+    r.onload = e => resolve({name:file.name,content:e.target.result.slice(0,12000)+(e.target.result.length>12000?'\n...[truncated]':'')});
+    r.onerror = () => resolve({name:file.name,content:'[Read error]'});
+    r.readAsText(file);
+  });
+}
+
+// ── Log ───────────────────────────────────────────────────────────────────────
+function showLog() {
+  document.getElementById('logPanel').style.display='block';
+  document.getElementById('logBody').innerHTML='';
+  document.getElementById('outputSection').style.display='none';
+  document.getElementById('pulseDot').classList.add('pulse-dot');
+  document.getElementById('pulseDot').style.background='#10b981';
+  document.getElementById('logStatus').textContent='Processing...';
+  document.getElementById('convertBtn').disabled=true;
+}
+function addLog(type,msg) {
+  const b=document.getElementById('logBody');
+  const colors={ok:'#10b981',info:'#38bdf8',warn:'#f59e0b',err:'#f87171'};
+  const prefix={ok:'✓',info:'→',warn:'⚠',err:'✗'}[type]||'·';
+  const line=document.createElement('p');
+  line.className='log-line text-xs code-font'; line.style.color=colors[type]||'#94a3b8';
+  line.textContent=`${prefix} ${msg}`; b.appendChild(line); b.scrollTop=b.scrollHeight;
+}
+function setProgress(pct) { document.getElementById('progressBar').style.width=pct+'%'; }
+function stopPulse(msg, failed) {
+  const dot=document.getElementById('pulseDot');
+  dot.classList.remove('pulse-dot');
+  dot.style.background=failed?'#f87171':'#10b981';
+  document.getElementById('logStatus').textContent=msg;
+  document.getElementById('convertBtn').disabled=false; updateBtn();
+}
+
+// ── Output ────────────────────────────────────────────────────────────────────
+function showOutput(html) {
+  document.getElementById('outputSection').style.display='block';
+  document.getElementById('outputCode').textContent=html;
+  document.getElementById('previewFrame').src=URL.createObjectURL(new Blob([html],{type:'text/html'}));
+  switchTab('html');
+}
+function switchTab(tab) {
+  document.querySelectorAll('.tab-btn').forEach((b,i)=>b.classList.toggle('active',['html','preview'][i]===tab));
+  document.getElementById('tab-html').style.display=tab==='html'?'block':'none';
+  document.getElementById('tab-preview').style.display=tab==='preview'?'block':'none';
+}
+function copyOutput() { navigator.clipboard.writeText(state.output).then(()=>showToast('Copied to clipboard')); }
+function downloadHTML() {
+  const name=(document.getElementById('nameInput').value.trim()||'game').replace(/\s+/g,'-').toLowerCase();
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([state.output],{type:'text/html'}));
+  a.download=`${name}.html`; a.click();
+  showToast('Downloaded '+name+'.html');
+}
+</script>
+</body>
+</html>
